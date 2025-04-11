@@ -1,15 +1,38 @@
 import { WebSocketServer } from 'ws';
+import http from 'http';
+import { createRequire } from 'module';
 
-// Create a WebSocket server
-const wss = new WebSocketServer({ port: 8080 });
+const PORT = process.env.PORT || 8080;
+
+// Create HTTP server
+const server = http.createServer((req, res) => {
+    // Set CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+        res.writeHead(200);
+        res.end();
+        return;
+    }
+    
+    // Respond with 200 OK
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('WebSocket server is running');
+});
+
+// Create WebSocket server on top of HTTP server
+const wss = new WebSocketServer({ server });
 
 // Store connected clients
 const clients = new Map();
 
-console.log('WebSocket server started on port 8080');
-
-wss.on('connection', (ws) => {
-    console.log('New client connected');
+// Connection handler
+wss.on('connection', (ws, req) => {
+    const ip = req.socket.remoteAddress;
+    console.log(`New client connected from ${ip}`);
     let username = null;
 
     ws.on('message', (data) => {
@@ -34,12 +57,14 @@ wss.on('connection', (ws) => {
                 username = message.username;
                 clients.set(username, ws);
                 
-                console.log(`User ${username} registered`);
+                console.log(`User ${username} registered (${clients.size} users online)`);
                 
                 // Send confirmation to the user
                 ws.send(JSON.stringify({
                     type: 'registered',
-                    success: true
+                    success: true,
+                    username: username,
+                    onlineCount: clients.size
                 }));
                 
                 return;
@@ -65,7 +90,7 @@ wss.on('connection', (ws) => {
                     console.log(`Recipient ${message.to} not found`);
                     ws.send(JSON.stringify({
                         type: 'error',
-                        message: 'Recipient not found'
+                        message: 'Recipient not found or offline'
                     }));
                     return;
                 }
@@ -102,5 +127,31 @@ wss.on('connection', (ws) => {
         } else {
             console.log('Unregistered client disconnected');
         }
+    });
+
+    // Handle errors
+    ws.on('error', (error) => {
+        console.error('WebSocket error:', error);
+        if (username) {
+            clients.delete(username);
+        }
+    });
+});
+
+// Start the server
+server.listen(PORT, () => {
+    console.log(`WebSocket server started on port ${PORT}`);
+    console.log(`HTTP endpoint available at http://localhost:${PORT}`);
+});
+
+// Handle server shutdown gracefully
+process.on('SIGINT', () => {
+    console.log('Shutting down server...');
+    wss.clients.forEach(client => {
+        client.close();
+    });
+    server.close(() => {
+        console.log('Server shut down');
+        process.exit(0);
     });
 });

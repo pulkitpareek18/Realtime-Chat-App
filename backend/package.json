@@ -2,13 +2,18 @@
   "name": "realtime-chat-app",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Realtime chat application with WebSocket",
   "dependencies": {
     "ws": "^8.18.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
   }
 }
